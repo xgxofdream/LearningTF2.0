@@ -9,9 +9,15 @@ Created on Sat Dec 28 19:16:55 2019
 import tensorflow as tf
 import numpy as np
 
+#-----------------------------定义一些模型超参数------------------------------
+# 这些参数都会影响模型性能
+num_epochs = 5
+batch_size = 50 #批次大小影响模型性能，小一点会更好
+learning_rate = 0.01
 
 #-----------------------------数据获取及预处理------------------------------
 #tf.keras.datasets
+#数据准备方式影响计算速度
 class MNISTLoader():
     def __init__(self):
         mnist = tf.keras.datasets.mnist
@@ -31,6 +37,7 @@ class MNISTLoader():
 
 #-----------------------------模型的构建------------------------------
 #： tf.keras.Model 和 tf.keras.layers
+# 模型的设计影响模型的性能
 class MLP(tf.keras.Model):
     def __init__(self):
         super().__init__()
@@ -44,19 +51,23 @@ class MLP(tf.keras.Model):
         x = self.dense2(x)          # [batch_size, 10]
         output = tf.nn.softmax(x)
         return output
-#-----------------------------定义一些模型超参数------------------------------
-num_epochs = 1
-batch_size = 50
-learning_rate = 0.01
+
 
 #-----------------------------实例化模型和数据读取类------------------------------
 #并实例化一个 tf.keras.optimizer 的优化器（这里使用常用的 Adam 优化器）
 model = MLP()
 data_loader = MNISTLoader()
+
+# 优化器optimizer的作用：根据learning_rate(𝜂)和loss(𝐿)计算模型参数。模型的初始参数w0是随机给定的。
+# 即，w = optimizer (𝐿,𝜂,w0)
+# 优化器optimizer在工作过程中，它还会随着迭代epoch而调整学习率learning_rate(𝜂)。思路是：
+# 初始阶段始选择大的𝜂=𝜂0(即初始𝜂)，随着迭代的深入，由于我们在接近局部或者全局最优loss(𝐿)，我们调小𝜂。
+# 因此，选择什么样的优化器决定了𝜂调整的好坏。有的优化器方法还涉及到动量Momentum的设定。
+# 优化器函数optimizer和损失函数loss一起影响模型性能，loss函数是优化器函数optimizer的上游。
 optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
 
-#-----------------------------迭代------------------------------
-#然后迭代进行以下步骤：
+#-----------------------------迭代训练模型------------------------------
+#迭代进行以下步骤：
 
 #从 DataLoader 中随机取一批训练数据；
 
@@ -69,15 +80,21 @@ optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
 #将求出的导数值传入优化器，使用优化器的 apply_gradients 方法更新模型参数以最小化损失函数
 
 num_batches = int(data_loader.num_train_data // batch_size * num_epochs)
+
+
 for batch_index in range(num_batches):
     X, y = data_loader.get_batch(batch_size)
+    # 1.开始执行梯度下降（Gradient Descent），过程中计算loss
     with tf.GradientTape() as tape:
-        #模型导入并测试性能
+        # 2.随机赋值模型的参数w，计算loss
         y_pred = model(X)
+        # 2.1 采用交叉熵crossentropy方法计算loss。合适的loss计算方式决定模型性能。
         loss = tf.keras.losses.sparse_categorical_crossentropy(y_true=y, y_pred=y_pred)
         loss = tf.reduce_mean(loss)
         print("batch %d: loss %f" % (batch_index, loss.numpy()))
+    # 3.根据所得loss(𝐿)，计算导数𝜕𝐿/𝜕𝑤
     grads = tape.gradient(loss, model.variables)
+    # 4.依据#3所得导数，和学习率learning_rate(𝜂)，得出下一步的模型的参数：𝑤 ← 𝑤 − 𝜂𝜕𝐿/𝜕𝑤
     optimizer.apply_gradients(grads_and_vars=zip(grads, model.variables))
     
 #----------------------------------------------模型的评估------------------------------
